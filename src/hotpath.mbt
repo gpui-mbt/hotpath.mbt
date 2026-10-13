@@ -76,14 +76,6 @@ fn histogram_upper_bound(index : Int) -> Int64 {
 }
 
 ///|
-fn percentile_rank(calls : Int, percentile : Int) -> Int64 {
-  if calls <= 0 {
-    return 0L
-  }
-  (calls.to_int64() * percentile.to_int64() + 99L) / 100L
-}
-
-///|
 fn histogram_percentile(
   buckets : Array[Int],
   calls : Int,
