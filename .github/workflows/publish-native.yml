@@ -17,6 +17,9 @@ on:
 permissions:
   contents: read
 
+env:
+  MOONBIT_INSTALL_VERSION: "0.10.15+943464bfa"
+
 jobs:
   prepare:
     runs-on: ubuntu-24.04
@@ -73,6 +76,11 @@ jobs:
         if: startsWith(matrix.platform, 'windows-')
         uses: ilammy/msvc-dev-cmd@v1
       - uses: hustcer/setup-moonbit@v1
+        with:
+          version: ${{ env.MOONBIT_INSTALL_VERSION }}
+          core-version: ${{ env.MOONBIT_INSTALL_VERSION }}
+      - name: Toolchain
+        run: moon version
       - name: Resolve dependencies
         run: |
           moon update
