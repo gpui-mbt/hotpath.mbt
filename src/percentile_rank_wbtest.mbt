@@ -6,7 +6,7 @@
 /// helper's defensive guard, not a reachable negative profiler sample count.
 test "nearest rank satisfies independent rounding inequalities" {
   @quickcheck.check(
-    (input : (Int, Byte)) => {
+    (input : (Int32, Byte)) => {
       let (calls, raw_percentile) = input
       let percentile = raw_percentile.to_int() % 100 + 1
       let rank = percentile_rank(calls, percentile)

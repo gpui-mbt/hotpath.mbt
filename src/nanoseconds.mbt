@@ -3,7 +3,7 @@
 /// not exact quantiles. The unit does not imply clock resolution.
 pub(all) struct MeasurementNs {
   label : String
-  calls : Int
+  calls : Int32
   total_ns : Int64
   min_ns : Int64
   max_ns : Int64
@@ -20,12 +20,12 @@ pub extend MeasurementNs with Eq::{equal, not_equal}
 ///|
 struct StateNs {
   label : String
-  mut calls : Int
+  mut calls : Int32
   mut total : Int64
   mut minimum : Int64
   mut maximum : Int64
   mut saturated : Bool
-  buckets : Array[Int]
+  buckets : Array[Int32]
 }
 
 ///|
@@ -35,8 +35,8 @@ struct StateNs {
 /// the caller's responsibility. This profiler is synchronous, not thread-safe.
 pub struct ProfilerNs {
   priv mut entries : Array[StateNs]
-  priv mut invalid_clocks : Int
-  priv mut dropped : Int
+  priv mut invalid_clocks : Int32
+  priv mut dropped : Int32
 }
 
 ///|
@@ -52,12 +52,12 @@ pub fn ProfilerNs::reset(self : ProfilerNs) -> Unit {
 }
 
 ///|
-pub fn ProfilerNs::invalid_clock_samples(self : ProfilerNs) -> Int {
+pub fn ProfilerNs::invalid_clock_samples(self : ProfilerNs) -> Int32 {
   self.invalid_clocks
 }
 
 ///|
-pub fn ProfilerNs::dropped_samples(self : ProfilerNs) -> Int {
+pub fn ProfilerNs::dropped_samples(self : ProfilerNs) -> Int32 {
   self.dropped
 }
 
