@@ -1,7 +1,7 @@
 ///|
 priv struct BaselineMeasurementState {
   label : String
-  mut calls : Int
+  mut calls : Int32
   mut total_ms : Int64
   mut min_ms : Int64
   mut max_ms : Int64

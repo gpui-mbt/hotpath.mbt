@@ -1,5 +1,5 @@
 ///|
-fn percentile_rank(calls : Int, percentile : Int) -> Int64 {
+fn percentile_rank(calls : Int32, percentile : Int32) -> Int64 {
   if calls <= 0 {
     return 0L
   }
