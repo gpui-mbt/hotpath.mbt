@@ -53,6 +53,22 @@ M5 precedes CI/MCP consumers so they can depend on a versioned report schema. M3
 
 If a milestone expands into more than one independently testable/releasable change, split it into numbered child packets under `issues/open/` before implementation. The roadmap remains the dependency/acceptance umbrella.
 
+## OS sub-issues — updated 2026-10-16 (JST)
+
+OS-specific native clock/runtime qualification work in M3 and M9 is split into:
+
+- [0005 — Windows runtime and support qualification](../open/0005-windows-runtime-qualification.md)
+- [0006 — Apple Silicon macOS runtime and support qualification](../open/0006-macos-arm64-runtime-qualification.md)
+- [0007 — Linux runtime and support qualification](../open/0007-linux-runtime-qualification.md)
+
+### Implemented native baseline — not production qualification
+
+As of [`main` at `5202f653`](https://github.com/gpui-mbt/hotpath.mbt/commit/5202f65371630b4d9305d0ed14ff4a4adfe3fd88), native `ProfilerNs::measure_native_ns` and `native_clock_resolution_ns()` already exist for Linux/macOS (`CLOCK_MONOTONIC`) and Windows (`QueryPerformanceCounter/Frequency`). The original millisecond API remains unchanged and JavaScript does not have a native clock adapter. See [README](../../README.md), [native C implementation](../../src/native_clock.c) and [native tests](../../src/native_clock_wbtest.mbt). Do not reopen completed histogram/nanosecond packets 0003/0004 or reimplement the native adapters.
+
+The [`test`, `windows` and Apple-Silicon-verified `macos-native` CI jobs](../../.github/workflows/ci.yml) all completed/success in [run 38716584202](https://github.com/gpui-mbt/hotpath.mbt/actions/runs/38716584202). This proves the specified CI exercises ran on those runner configurations, **not** broad OS/version compatibility, measured clock accuracy, suspend/resume semantics, bounded-load qualification or production readiness.
+
+The three child packets therefore focus on verifiable platform matrices, clock/failure behavior, stress and overhead evidence, and the README/support matrix. macOS policy remains Apple Silicon arm64 only (no Intel, Rosetta or universal-binary support). The portable core, M3 shared timing/finalization and async/cancellation contracts, concurrency policy, cross-target tests, and remaining M9 release gates stay in this parent. `ProfilerNs` is synchronous and not thread-safe. Completing one OS packet cannot by itself close M3/M9.
+
 ## M1 — bounded distribution statistics — done
 
 Implemented by PR #2 and recorded in `issues/done/0003-bounded-distribution-statistics.md`.
