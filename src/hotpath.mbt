@@ -1,5 +1,5 @@
 ///|
-const HISTOGRAM_BUCKETS : Int = 64
+const HISTOGRAM_BUCKETS : Int32 = 64
 
 ///|
 /// One immutable aggregate row returned by a profiler snapshot.
@@ -8,7 +8,7 @@ const HISTOGRAM_BUCKETS : Int = 64
 /// zero/one-millisecond buckets and the estimate is always capped by max_ms.
 pub(all) struct Measurement {
   label : String
-  calls : Int
+  calls : Int32
   total_ms : Int64
   min_ms : Int64
   max_ms : Int64
@@ -21,16 +21,16 @@ pub(all) struct Measurement {
 ///|
 struct MeasurementState {
   label : String
-  mut calls : Int
+  mut calls : Int32
   mut total_ms : Int64
   mut min_ms : Int64
   mut max_ms : Int64
-  buckets : Array[Int]
+  buckets : Array[Int32]
 }
 
 ///|
-fn new_histogram() -> Array[Int] {
-  let buckets : Array[Int] = []
+fn new_histogram() -> Array[Int32] {
+  let buckets : Array[Int32] = []
   for _i in 0..<HISTOGRAM_BUCKETS {
     buckets.push(0)
   }
@@ -38,8 +38,8 @@ fn new_histogram() -> Array[Int] {
 }
 
 ///|
-fn copy_histogram(source : Array[Int]) -> Array[Int] {
-  let result : Array[Int] = []
+fn copy_histogram(source : Array[Int32]) -> Array[Int32] {
+  let result : Array[Int32] = []
   for value in source {
     result.push(value)
   }
@@ -47,7 +47,7 @@ fn copy_histogram(source : Array[Int]) -> Array[Int] {
 }
 
 ///|
-fn histogram_bucket(elapsed_ms : Int64) -> Int {
+fn histogram_bucket(elapsed_ms : Int64) -> Int32 {
   if elapsed_ms <= 0L {
     return 0
   }
@@ -61,7 +61,7 @@ fn histogram_bucket(elapsed_ms : Int64) -> Int {
 }
 
 ///|
-fn histogram_upper_bound(index : Int) -> Int64 {
+fn histogram_upper_bound(index : Int32) -> Int64 {
   if index <= 0 {
     return 0L
   }
@@ -76,18 +76,10 @@ fn histogram_upper_bound(index : Int) -> Int64 {
 }
 
 ///|
-fn percentile_rank(calls : Int, percentile : Int) -> Int64 {
-  if calls <= 0 {
-    return 0L
-  }
-  (calls.to_int64() * percentile.to_int64() + 99L) / 100L
-}
-
-///|
 fn histogram_percentile(
-  buckets : Array[Int],
-  calls : Int,
-  percentile : Int,
+  buckets : Array[Int32],
+  calls : Int32,
+  percentile : Int32,
   max_ms : Int64,
 ) -> Int64 {
   if calls <= 0 {

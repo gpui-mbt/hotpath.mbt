@@ -1,7 +1,7 @@
 ///|
 priv struct BaselineMeasurementState {
   label : String
-  mut calls : Int
+  mut calls : Int32
   mut total_ms : Int64
   mut min_ms : Int64
   mut max_ms : Int64
@@ -58,4 +58,14 @@ test (b : @bench.T) {
   b.bench(name="m0_aggregate_only", fn() { baseline.record_ms("parse", 10L) })
   let profiler = Profiler::new()
   b.bench(name="m1_bounded_histogram", fn() { profiler.record_ms("parse", 10L) })
+}
+
+///|
+#cfg(target="native")
+test (b : @bench.T) {
+  let profiler = ProfilerNs::new()
+  b.bench(name="m2_native_clock_read", fn() { ignore(native_clock_now_ns()) })
+  b.bench(name="m3_native_ns_measurement", fn() {
+    profiler.measure_native_ns("parse", () => ())
+  })
 }

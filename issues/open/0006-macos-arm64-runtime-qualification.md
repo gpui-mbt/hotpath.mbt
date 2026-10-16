@@ -1,32 +1,36 @@
-# 0006 — Apple Silicon macOS runtime and support qualification
+# 0006 — Apple Silicon macOS native clock and release qualification
 
-Status: open
+Status: open — remaining qualification evidence
 Date: 2026-10-07 (JST)
+Updated: 2026-10-16 (JST)
 Parent: [0002 — Production-ready roadmap](../polished/0002-production-roadmap.md)
-Milestones: M3 macOS clock/runtime integration; M9 macOS qualification
+Milestones: M3 native-clock baseline implemented; M3 shared runtime semantics and M9 support qualification outstanding
 
 ## Goal
 
-Qualify macOS on Apple Silicon with native arm64 execution. Intel/x86_64 macOS, universal binaries, and Rosetta compatibility are outside scope.
+Qualify the already-shipped native macOS clock and runtime behavior on verified Apple Silicon arm64 hosts. Intel/x86_64 macOS, Rosetta and universal binaries remain outside scope.
 
-## Current boundary
+## Delivered baseline (not full OS qualification)
 
-At `87a8d8494d5e2c2b4fed2115882315ba652dc37c`, millisecond profiling and injected-clock `ProfilerNs` are implemented. There is no macOS native clock adapter or macOS CI job. Nanosecond storage does not establish clock accuracy or Apple Silicon qualification.
+As of [`main` at `5202f653`](https://github.com/gpui-mbt/hotpath.mbt/commit/5202f65371630b4d9305d0ed14ff4a4adfe3fd88):
+
+- macOS uses [`clock_gettime(CLOCK_MONOTONIC)` and `clock_getres(CLOCK_MONOTONIC)`](../../src/native_clock.c), checked for failed reads and nanosecond overflow; the [opt-in `ProfilerNs` native facade](../../src/native_clock.mbt) preserves the existing millisecond API.
+- [Native clock tests](../../src/native_clock_wbtest.mbt) cover ordered reads, nonnegative timestamps, reported resolution and closure-return preservation. Clock unit is not a promise of nanosecond precision.
+- [CI run 38716584202](https://github.com/gpui-mbt/hotpath.mbt/actions/runs/38716584202) completed/success for `macos-native` (`macos-15`), explicitly checking `uname -m = arm64`, then format, native check/test and native clock overhead bench.
+- The present native build and test baseline is real arm64 CI evidence, but does not qualify all Apple Silicon devices, macOS versions, or suspend/resume conditions.
 
 ## Scope and dependencies
 
-Use the parent's shared M3 timing/finalization contract and M9 release policy. Common implementation stays in 0002; completed histogram/nanosecond packets 0003/0004 are not reopened.
+Reuse the existing clock adapter, native tests, `ProfilerNs` API and CI. M3 timing/finalization, error handling, async/cancellation and concurrency contracts shared across OSes remain in the [parent roadmap](../polished/0002-production-roadmap.md). Completed histogram/nanosecond packets 0003/0004 must not be reopened.
 
-## Acceptance
+## Remaining acceptance
 
-- [ ] List qualified macOS versions, Apple Silicon arm64 host/execution architecture, MoonBit toolchains, targets, and runtimes; explicitly exclude Intel/x86_64 and Rosetta.
-- [ ] Document the native clock source, measured resolution, monotonicity, and suspend/resume behavior; test nanosecond conversion, overflow, clock failure, and explicit fallback/unsupported behavior.
-- [ ] Keep macOS types inside the adapter. Preserve existing millisecond APIs/reports and caller-supplied nanosecond clocks.
-- [ ] Run format/check/tests on verified Apple Silicon arm64 hosts for each claimed combination, recording host, toolchain, commands, and results. A macOS runner label alone is insufficient architecture evidence.
-- [ ] Verify macOS-specific error/unwind/shutdown behavior against the agreed M3 contract and record cleanup limitations. Async/cancellation guarantees require the parent's shared design first.
-- [ ] Run existing overhead benchmarks and bounded-label stress checks natively on arm64; measure native-clock overhead separately. Apply the parent's concurrency model; do not imply `ProfilerNs` is thread-safe.
-- [ ] Link qualification evidence from the README/support matrix, including remaining limitations and the Apple Silicon-only policy.
+- [ ] Record explicitly supported macOS versions, Apple Silicon arm64 host/execution architecture, MoonBit/core and native toolchains. Reject Intel/x86_64, Rosetta and untested OS/toolchain combinations from the advertised matrix.
+- [ ] Measure real `CLOCK_MONOTONIC` resolution/overhead, validate monotonicity and document suspend/resume behavior and failure/overflow handling under reproducible OS conditions.
+- [ ] Verify macOS-specific error/unwind/shutdown semantics against shared M3. Do not imply async/cancellation safety before that contract exists; keep `ProfilerNs` synchronous and not thread-safe.
+- [ ] Run bounded-label stress, clock-read overhead and complete native-measurement benchmarks on declared arm64 hosts; capture commands, host architecture, version and results.
+- [ ] Publish qualification evidence and unresolved limitations in the README/support matrix, separate from CI target/build success.
 
 ## Completion boundary
 
-Apple Silicon macOS evidence contributes to M3/M9; this packet alone does not complete either milestone or establish production readiness.
+Evidence for this OS contributes to M3/M9 but does not by itself complete either milestone, validate every host or establish production readiness.

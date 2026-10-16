@@ -1,32 +1,36 @@
-# 0005 — Windows runtime and support qualification
+# 0005 — Windows native clock and release qualification
 
-Status: open
+Status: open — remaining qualification evidence
 Date: 2026-10-07 (JST)
+Updated: 2026-10-16 (JST)
 Parent: [0002 — Production-ready roadmap](../polished/0002-production-roadmap.md)
-Milestones: M3 Windows clock/runtime integration; M9 Windows qualification
+Milestones: M3 native-clock baseline implemented; M3 shared runtime semantics and M9 support qualification outstanding
 
 ## Goal
 
-Qualify Windows-specific clocks and runtime behavior behind narrow adapters, preserving the portable core.
+Qualify the already-shipped Windows monotonic clock implementation and runtime behavior on explicitly recorded Windows hosts; do not reimplement the existing adapter.
 
-## Current boundary
+## Delivered baseline (not full OS qualification)
 
-At `87a8d8494d5e2c2b4fed2115882315ba652dc37c`, millisecond profiling and injected-clock `ProfilerNs` are implemented. There is no Windows native clock adapter or Windows CI job. Nanosecond storage does not establish clock accuracy or Windows support.
+As of [`main` at `5202f653`](https://github.com/gpui-mbt/hotpath.mbt/commit/5202f65371630b4d9305d0ed14ff4a4adfe3fd88):
+
+- Native [`QueryPerformanceCounter` / `QueryPerformanceFrequency`](../../src/native_clock.c) reads use checked integer conversion to nanoseconds; invalid reads, unsupported frequency and overflow return `-1` rather than an invented duration.
+- [`ProfilerNs::measure_native_ns`](../../src/native_clock.mbt) and `native_clock_resolution_ns()` are opt-in native APIs. The original millisecond API is unchanged; the native adapter is not exposed on JavaScript targets.
+- [Native clock tests](../../src/native_clock_wbtest.mbt) exercise ordered reads and positive reported resolution, plus Windows QPC tick conversion, large values, invalid frequencies and integral-nanosecond resolution.
+- [CI run 38716584202](https://github.com/gpui-mbt/hotpath.mbt/actions/runs/38716584202) completed/success for the `windows` job (`windows-2025`): format, all-target check/test and native bench. This is a tested runner baseline, not an OS support-matrix certification.
 
 ## Scope and dependencies
 
-Use the parent's shared M3 timing/finalization contract and M9 release policy. Common implementation stays in 0002; completed histogram/nanosecond packets 0003/0004 are not reopened.
+Reuse the existing clock adapter, native tests, `ProfilerNs` API and CI. M3 timing/finalization, error handling, async/cancellation and concurrency contracts shared across OSes remain in the [parent roadmap](../polished/0002-production-roadmap.md). Completed histogram/nanosecond packets 0003/0004 must not be reopened.
 
-## Acceptance
+## Remaining acceptance
 
-- [ ] List qualified Windows versions, architectures, MoonBit toolchains, targets, and runtimes; leave untested combinations unqualified.
-- [ ] Document the native clock source, measured resolution, monotonicity, and suspend/resume behavior; test nanosecond conversion, overflow, clock failure, and explicit fallback/unsupported behavior.
-- [ ] Keep Windows types inside the adapter. Preserve existing millisecond APIs/reports and caller-supplied nanosecond clocks.
-- [ ] Run format/check/tests on Windows for each claimed combination, recording actual host, toolchain, commands, and results. MoonBit target coverage alone is not OS qualification.
-- [ ] Verify Windows-specific error/unwind/shutdown behavior against the agreed M3 contract and record cleanup limitations. Async/cancellation guarantees require the parent's shared design first.
-- [ ] Run existing overhead benchmarks and bounded-label stress checks; measure native-clock overhead separately. Apply the parent's concurrency model; do not imply `ProfilerNs` is thread-safe.
-- [ ] Link qualification evidence from the README/support matrix and state remaining limitations.
+- [ ] Publish an exact Windows edition/version, architecture, runtime, MoonBit/core and native toolchain matrix. Record the observed runner image and compiler; do not extrapolate `windows-2025` coverage to every Windows host.
+- [ ] Record the QPC source, measured clock resolution/precision, monotonicity and suspend/resume limitations on each claimed host. Exercise and document clock failure, conversion bounds and explicit unsupported behavior with reproducible evidence.
+- [ ] Verify OS-specific error/unwind/shutdown semantics against the shared M3 contract, including no fabricated duration after a clock failure. Async/cancellation guarantees remain out of scope until the parent contract is defined.
+- [ ] Run bounded-label stress and native clock/measurement overhead checks against documented workloads on qualified host configurations. Preserve the synchronous, non-thread-safe `ProfilerNs` model.
+- [ ] Link successful host/command logs and measured limitations from the README/support matrix. Keep untested combinations unqualified.
 
 ## Completion boundary
 
-Windows evidence contributes to M3/M9; this packet alone does not complete either milestone or establish production readiness.
+Evidence for this OS contributes to M3/M9 but does not by itself complete either milestone, validate every host or establish production readiness.

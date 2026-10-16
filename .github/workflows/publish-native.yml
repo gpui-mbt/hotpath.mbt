@@ -1,0 +1,208 @@
+name: Publish native executables for moon-binstall
+
+
+on:
+  pull_request:
+    paths:
+      - "moon.mod"
+      - ".github/workflows/publish-native.yml"
+      - "scripts/release_version.py"
+      - "scripts/tests/test_release_version.py"
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "moon.mod"
+
+permissions:
+  contents: read
+
+env:
+  MOONBIT_INSTALL_VERSION: "0.10.15+943464bfa"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Release guard unit tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_release_version.py' -v
+      - name: Detect explicit manifest version change
+        id: resolve
+        shell: bash
+        env:
+          RELEASE_KIND: hotpath
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          release_tag=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            python3 scripts/release_version.py check-tag --kind "$RELEASE_KIND" --tag "$GITHUB_REF_NAME"
+            release_tag="$GITHUB_REF_NAME"
+          elif [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            git show "${EVENT_BEFORE}:moon.mod" > "$RUNNER_TEMP/previous-moon.mod"
+            release_tag="$(python3 scripts/release_version.py changed --kind "$RELEASE_KIND" --previous-file "$RUNNER_TEMP/previous-moon.mod")"
+          else
+            python3 scripts/release_version.py read --kind "$RELEASE_KIND"
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: github.event_name == 'pull_request' || needs.prepare.outputs.release_tag != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+          - os: ubuntu-24.04-arm
+            platform: linux-aarch64
+          - os: macos-15
+            platform: darwin-aarch64
+          - os: windows-2025
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure MSVC
+        if: startsWith(matrix.platform, 'windows-')
+        uses: ilammy/msvc-dev-cmd@v1
+      - uses: hustcer/setup-moonbit@v1
+        with:
+          version: ${{ env.MOONBIT_INSTALL_VERSION }}
+          core-version: ${{ env.MOONBIT_INSTALL_VERSION }}
+      - name: Toolchain
+        run: moon version
+      - name: Resolve dependencies
+        run: |
+          moon update
+          moon install
+      - name: Build MoonBit native executable
+        run: moon build examples/terminal_report --target native --release
+      - name: Verify Darwin artifact architecture
+        if: matrix.platform == 'darwin-aarch64'
+        run: test "$(uname -m)" = arm64
+      - name: Package raw release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          binaries=$(find _build/native/release/build -type f -name 'terminal_report.exe' -print)
+          count=$(printf '%s\n' "$binaries" | grep -c . || true)
+          if [ "$count" -ne 1 ]; then
+            printf 'Expected exactly one terminal_report.exe, got %s\n' "$count" >&2
+            exit 1
+          fi
+          mkdir -p release
+          asset="release/hotpath-report-${{ matrix.platform }}"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then asset="${asset}.exe"; fi
+          cp -- "$binaries" "$asset"
+          chmod 755 "$asset"
+          test -s "$asset"
+      - name: Smoke check
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="./release/hotpath-report-${{ matrix.platform }}"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then asset="${asset}.exe"; fi
+          "$asset"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.platform }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.event_name == 'push' && needs.prepare.outputs.release_tag != ''
+    needs: [prepare, build]
+    concurrency:
+      group: hotpath-release-${{ needs.prepare.outputs.release_tag }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: release
+          merge-multiple: true
+      - name: Publish verified GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          test "$(find release -type f | wc -l)" -eq 4
+          verify_tag_args=()
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            verify_tag_args+=(--explicit-tag)
+          fi
+          tag_ref_state="$(python3 scripts/release_version.py verify-tag-ref \
+            --kind hotpath --tag "$RELEASE_TAG" "${verify_tag_args[@]}")"
+          response_file="$RUNNER_TEMP/release-response.txt"
+          api_error_file="$RUNNER_TEMP/release-api-error.txt"
+          api_exit_code=0
+          if gh api --include "repos/$GH_REPO/releases/tags/$RELEASE_TAG" >"$response_file" 2>"$api_error_file"; then
+            api_exit_code=0
+          else
+            api_exit_code=$?
+          fi
+          if release_state="$(python3 scripts/release_version.py check-existing-release \
+            --kind hotpath --tag "$RELEASE_TAG" --response-file "$response_file" \
+            --request-exit-code "$api_exit_code" 2>"$RUNNER_TEMP/release-validation-error.txt")"; then
+            :
+          else
+            cat "$RUNNER_TEMP/release-validation-error.txt" >&2
+            cat "$api_error_file" >&2
+            exit 1
+          fi
+          if [[ "$release_state" == "complete" ]]; then
+            echo "Release $RELEASE_TAG is already published with all expected assets"
+            exit 0
+          fi
+          test "$release_state" = "missing" || {
+            echo "Unexpected release validation state: $release_state" >&2
+            exit 1
+          }
+          release_list_file="$RUNNER_TEMP/release-list.json"
+          release_list_error_file="$RUNNER_TEMP/release-list-api-error.txt"
+          release_list_exit_code=0
+          if gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" >"$release_list_file" 2>"$release_list_error_file"; then
+            release_list_exit_code=0
+          else
+            release_list_exit_code=$?
+          fi
+          if release_list_state="$(python3 scripts/release_version.py check-release-list \
+            --kind hotpath --tag "$RELEASE_TAG" --response-file "$release_list_file" \
+            --request-exit-code "$release_list_exit_code" 2>"$RUNNER_TEMP/release-list-validation-error.txt")"; then
+            :
+          else
+            cat "$RUNNER_TEMP/release-list-validation-error.txt" >&2
+            cat "$release_list_error_file" >&2
+            exit 1
+          fi
+          test "$release_list_state" = "missing" || {
+            echo "Unexpected release-list state: $release_list_state" >&2
+            exit 1
+          }
+          if [[ "$tag_ref_state" == "present" ]]; then
+            gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "$RELEASE_TAG"
+          elif [[ "$tag_ref_state" == "missing" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            gh release create "$RELEASE_TAG" release/* --target "$GITHUB_SHA" --generate-notes --title "$RELEASE_TAG"
+          else
+            echo "Unexpected remote tag state for $RELEASE_TAG: $tag_ref_state" >&2
+            exit 1
+          fi

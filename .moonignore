@@ -1,0 +1,6 @@
+# Repository-only notes, docs, and examples are not part of the published library.
+/issues/
+/docs/
+/examples/
+**/__pycache__/
+**/*.py[cod]

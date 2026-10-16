@@ -4,6 +4,11 @@ import {
 
 import {
   "moonbitlang/core/bench",
+  "moonbitlang/core/quickcheck",
 } for "wbtest"
 
 pkgtype(kind: "library")
+
+options(
+  "native-stub": [ "native_clock.c" ],
+)
